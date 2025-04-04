@@ -148,24 +148,24 @@ if st.session_state.get('logged_in', False):
     df = load_data(st.session_state.user_id, st.session_state.get('demo_mode', False))
 
     # Ensure all data is properly processed before use
-if df is not None and 'date' in df.columns:
-    # Try to convert 'date' column to datetime format
-    try:
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
-        # Check for NaT values after conversion
-        if df['date'].isna().any():
-            st.warning("Some date values couldn't be parsed. Please check your data.")
-            # Drop rows with invalid dates
-            df = df.dropna(subset=['date'])
-    except Exception as e:
-        st.error(f"Error converting dates: {str(e)}")
-        
-    # Debug information
-    st.sidebar.markdown("### Debug Info")
-    with st.sidebar.expander("DataFrame Info"):
-        st.write("Date column type:", df['date'].dtype)
-        st.write("Available columns:", df.columns.tolist())
-        st.write("Number of rows:", len(df))
+    if df is not None and 'date' in df.columns:
+        # Try to convert 'date' column to datetime format
+        try:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            # Check for NaT values after conversion
+            if df['date'].isna().any():
+                st.warning("Some date values couldn't be parsed. Please check your data.")
+                # Drop rows with invalid dates
+                df = df.dropna(subset=['date'])
+        except Exception as e:
+            st.error(f"Error converting dates: {str(e)}")
+            
+        # Debug information
+        st.sidebar.markdown("### Debug Info")
+        with st.sidebar.expander("DataFrame Info"):
+            st.write("Date column type:", df['date'].dtype)
+            st.write("Available columns:", df.columns.tolist())
+            st.write("Number of rows:", len(df))
 else:
     # Placeholder until login
     df = None
