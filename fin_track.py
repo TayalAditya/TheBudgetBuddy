@@ -939,143 +939,59 @@ if user_query:
 # The rest of your interface (sidebar date selection, main columns, etc.)
 # remains largely unchanged...
 
+# Replace the date selection code in the sidebar with this safer version:
+
 # Sidebar for date selection
 st.sidebar.markdown('<h2 class="custom-subheader">📅 Date Selection</h2>', unsafe_allow_html=True)
-selected_date = st.sidebar.date_input("Select Date", min_value=df['date'].min(), max_value=df['date'].max())
 
-# Date range selection for trend analysis
-st.sidebar.markdown('<h2 class="custom-subheader">📊 Trend Analysis</h2>', unsafe_allow_html=True)
-default_start_date = pd.to_datetime(selected_date) - pd.Timedelta(days=3)
-default_start_date = max(default_start_date, df['date'].min())
-
-start_date = st.sidebar.date_input("Start Date", 
-                                 value=default_start_date,
-                                 min_value=df['date'].min(), 
-                                 max_value=df['date'].max())
-end_date = st.sidebar.date_input("End Date", 
-                               value=selected_date,
-                               min_value=df['date'].min(), 
-                               max_value=df['date'].max())
-
-# Main interface with two columns
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown('<h2 class="custom-subheader">📊 Daily Financial Overview</h2>', unsafe_allow_html=True)
-    analysis = finance_tools.analyze_spending(str(selected_date))
-    st.markdown(f'<div class="analysis-text">{analysis}</div>', unsafe_allow_html=True)
+# Check if df exists and has data
+if df is not None and not df.empty:
+    min_date = df['date'].min().date()
+    max_date = df['date'].max().date()
     
-    # Create visualizations
-    daily_data = df[df['date'].dt.date == selected_date]
-    if not daily_data.empty:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        fig1 = px.pie(daily_data, values='amount', names='category_description',
-                     title=f'Spending Breakdown for {selected_date}')
-        fig1.update_layout(
-            title_font=dict(size=20, color='#ffffff', family='Arial'),
-            font=dict(family='Arial', color='#ffffff'),
-            paper_bgcolor='#2d3748',
-            plot_bgcolor='#2d3748',
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1,
-                font=dict(color='#ffffff')
-            )
-        )
-        st.plotly_chart(fig1, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-with col2:
-    st.markdown('<h2 class="custom-subheader">📈 Trend Analysis</h2>', unsafe_allow_html=True)
-    if start_date and end_date:
-        trends = finance_tools.analyze_trends(str(start_date), str(end_date))
-        st.markdown(f'<div class="analysis-text">{trends}</div>', unsafe_allow_html=True)
-        
-        # Create trend visualization with daily aggregation
-        mask = (df['date'].dt.date >= start_date) & (df['date'].dt.date <= end_date)
-        period_data = df[mask].copy()
-        
-        if not period_data.empty:
-            # Aggregate data by date and calculate additional metrics
-            daily_data = period_data.groupby(period_data['date'].dt.date).agg({
-                'amount': ['sum', 'mean', 'count'],
-                'category_description': lambda x: ', '.join(x.unique())
-            }).reset_index()
-            
-            daily_data.columns = ['date', 'total_amount', 'avg_amount', 'transaction_count', 'categories']
-            daily_data['date'] = pd.to_datetime(daily_data['date'])
-            
-            # Calculate y-axis range with padding
-            y_min = daily_data['total_amount'].min() * 0.9
-            y_max = daily_data['total_amount'].max() * 1.1
-            
-            # Create spending trend chart
-            fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(
-                x=daily_data['date'],
-                y=daily_data['total_amount'],
-                mode='lines+markers',
-                name='Daily Spending',
-                line=dict(width=2.5, color='#1f77b4', shape='linear'),
-                marker=dict(size=8, symbol='circle', color='#1f77b4', 
-                           line=dict(color='white', width=1)),
-                hovertemplate=(
-                    "<b>Date</b>: %{x|%Y-%m-%d}<br>" +
-                    "<b>Total Spent</b>: $%{y:,.2f}<br>" +
-                    "<b>Transactions</b>: %{customdata[0]}<br>" +
-                    "<b>Avg. Transaction</b>: $%{customdata[1]:,.2f}<br>" +
-                    "<b>Categories</b>: %{customdata[2]}<extra></extra>"
-                ),
-                customdata=list(zip(
-                    daily_data['transaction_count'],
-                    daily_data['avg_amount'],
-                    daily_data['categories']
-                ))
-            ))
-            
-            # Update layout
-            fig2.update_layout(
-                title={
-                    'text': 'Daily Spending Trends',
-                    'y': 0.95, 'x': 0.5,
-                    'xanchor': 'center', 'yanchor': 'top',
-                    'font': dict(size=20, family='Arial', color='#ffffff')
-                },
-                xaxis=dict(
-                    title='Date',
-                    title_font=dict(size=14, color='#ffffff'),
-                    tickfont=dict(size=12, color='#ffffff'),
-                    tickformat='%Y-%m-%d',
-                    gridcolor='#4a5568'
-                ),
-                yaxis=dict(
-                    title='Amount ($)',
-                    title_font=dict(size=14, color='#ffffff'),
-                    tickfont=dict(size=12, color='#ffffff'),
-                    gridcolor='#4a5568',
-                    tickprefix='$',
-                    range=[y_min, y_max]
-                ),
-                plot_bgcolor='#2d3748',
-                paper_bgcolor='#2d3748',
-                hovermode='x unified'
-            )
-            
-            st.plotly_chart(fig2, use_container_width=True)
-
-# Transaction list
-st.markdown('<h2 class="custom-subheader">📝 Transaction Details</h2>', unsafe_allow_html=True)
-daily_transactions = df[df['date'].dt.date == selected_date]
-if not daily_transactions.empty:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.dataframe(
-        daily_transactions[['transaction_id', 'amount', 'type', 'category_description', 'balance_left']],
-        hide_index=True
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Use current date as default selection, but ensure it's within valid range
+    today = datetime.now().date()
+    if today < min_date:
+        default_date = min_date
+    elif today > max_date:
+        default_date = max_date
+    else:
+        default_date = today
+    
+    selected_date = st.sidebar.date_input("Select Date", 
+                                         value=default_date,
+                                         min_value=min_date, 
+                                         max_value=max_date)
+    
+    # Date range selection for trend analysis
+    st.sidebar.markdown('<h2 class="custom-subheader">📊 Trend Analysis</h2>', unsafe_allow_html=True)
+    
+    # Calculate a safe default start date (3 days before selected date)
+    selected_date_ts = pd.to_datetime(selected_date)
+    default_start_ts = selected_date_ts - pd.Timedelta(days=3)
+    
+    # Ensure default_start_date isn't earlier than the minimum date
+    if default_start_ts.date() < min_date:
+        default_start_date = min_date
+    else:
+        default_start_date = default_start_ts.date()
+    
+    start_date = st.sidebar.date_input("Start Date", 
+                                     value=default_start_date,
+                                     min_value=min_date, 
+                                     max_value=max_date)
+    
+    end_date = st.sidebar.date_input("End Date", 
+                                   value=selected_date,
+                                   min_value=min_date, 
+                                   max_value=max_date)
 else:
-    st.info("No transactions for selected date.")
+    # If no data is available, use today as default and disable the widget
+    current_date = datetime.now().date()
+    st.sidebar.date_input("Select Date", value=current_date, disabled=True)
+    st.sidebar.markdown('<h2 class="custom-subheader">📊 Trend Analysis</h2>', unsafe_allow_html=True)
+    st.sidebar.date_input("Start Date", value=current_date - pd.Timedelta(days=3).days, disabled=True)
+    st.sidebar.date_input("End Date", value=current_date, disabled=True)
+    
+    # Show a message explaining why the controls are disabled
+    st.sidebar.warning("Date controls are disabled until data is loaded.")
