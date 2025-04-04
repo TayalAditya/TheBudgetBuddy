@@ -168,18 +168,24 @@ def create_vector_store(_df):
 # Conditionally create vectorstore if user is logged in
 vectorstore = None
 compression_retriever = None
-if st.session_state.logged_in and df is not None:
+
+if df is not None and not df.empty:
     vectorstore = create_vector_store(df)
     
     # Create compression retriever with caching
-    @st.cache_resource
-    def get_retriever():
-        return ContextualCompressionRetriever(
-            base_compressor=CohereRerank(),
-            base_retriever=vectorstore.as_retriever(search_kwargs={"k": 5})
-        )
-    
-    compression_retriever = get_retriever()
+@st.cache_resource
+def get_retriever(vs):
+    if vs is None:
+        return None
+    return ContextualCompressionRetriever(
+        base_compressor=CohereRerank(),
+        base_retriever=vectorstore.as_retriever(search_kwargs={"k": 5})
+    )
+
+# Only create retriever if vectorstore exists
+compression_retriever = None
+if vectorstore is not None:
+    compression_retriever = get_retriever(vectorstore)
 
 # Add a function to add a new transaction for a user
 def add_transaction_form():
@@ -565,6 +571,9 @@ def process_query_with_rag(query: str, current_date) -> str:
     """Process the query using RAG to provide relevant context"""
     if not st.session_state.logged_in or df is None:
         return "Please log in to use this feature."
+
+    if compression_retriever is None:
+        return "No transaction data available for analysis."
         
     try:
         # Get relevant documents from the vector store
