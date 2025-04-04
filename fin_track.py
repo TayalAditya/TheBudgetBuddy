@@ -767,29 +767,48 @@ def process_query(query: str, context: str):
 
 def process_query_with_rag(query: str, current_date) -> str:
     """Process the query using RAG to provide relevant context"""
-    if not st.session_state.logged_in or df is None:
-        return "Please log in to use this feature."
+    # Check if the user is logged in and data is available
+    if not st.session_state.get('logged_in', False) or df is None or df.empty:
+        return "No transaction data is available for analysis. Please log in and ensure transaction data is available."
 
+    # Check if the retriever is available
     if compression_retriever is None:
-        return "No transaction data available for analysis."
-        
+        # Provide basic insights even without the retriever
+        try:
+            total_transactions = len(df)
+            total_spent = df[df['transaction_type'] == 'expense']['amount'].sum() if 'transaction_type' in df.columns else df['amount'].sum()
+            avg_transaction = df['amount'].mean()
+            categories = df['category'].unique().tolist() if 'category' in df.columns else []
+
+            return (
+                f"RAG retriever is unavailable, but here are some insights:\n"
+                f"- Total Transactions: {total_transactions}\n"
+                f"- Total Spent: ${total_spent:.2f}\n"
+                f"- Average Transaction: ${avg_transaction:.2f}\n"
+                f"- Categories: {', '.join(categories) if categories else 'No categories available'}"
+            )
+        except Exception as e:
+            return f"Error generating basic insights: {str(e)}"
+
     try:
-        # Get relevant documents from the vector store
+        # Retrieve relevant documents from the vector store
         relevant_docs = compression_retriever.get_relevant_documents(query)
-        
+
         # Build context from relevant documents
         context = []
-        
+
         # Add current financial status
         context.append(f"Current Date: {current_date}")
         context.append(finance_tools.get_balance_info())
-        
+
         # Add relevant transaction information
         if relevant_docs:
             context.append("\nRelevant Transactions:")
             for doc in relevant_docs[:3]:  # Limit to top 3 most relevant transactions
                 context.append(doc.page_content)
-        
+        else:
+            context.append("\nNo relevant transactions found for your query.")
+
         # Add recent activity summary
         recent_transactions = df[df['date'].dt.date >= (pd.Timestamp(current_date) - pd.Timedelta(days=7)).date()]
         if not recent_transactions.empty:
@@ -798,10 +817,18 @@ def process_query_with_rag(query: str, current_date) -> str:
             context.append(f"\nRecent Activity (Last 7 Days):")
             context.append(f"- Total Transactions: {count_recent}")
             context.append(f"- Total Amount: ${total_recent:.2f}")
-        
-        return "\n".join(context)
+        else:
+            context.append("\nNo recent activity in the last 7 days.")
+
+        # Combine context into a single string
+        context_str = "\n".join(context)
+
+        # Use the context to generate a response
+        response = prompt_llm_for_financial_insights(query, context_str)
+        return response
     except Exception as e:
         return f"Error building context: {str(e)}"
+
 
 # Function to generate dynamic charts based on query - same as original
 def generate_dynamic_charts():
