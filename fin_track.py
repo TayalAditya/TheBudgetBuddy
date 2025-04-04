@@ -47,8 +47,24 @@ def get_api_key(key_name):
 
 # Set API keys
 os.environ["GROQ_API_KEY"] = get_api_key("GROQ_API_KEY")
-os.environ["COHERE_API_KEY"] = get_api_key("COHERE_API_KEY")
-os.environ["OPENAI_API_KEY"] = get_api_key("OPENAI_API_KEY")
+
+if 'GROQ_API_KEY' in st.secrets:
+    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+else:
+    # Fallback to local .env for development
+    os.environ["GROQ_API_KEY"] = get_api_key("GROQ_API_KEY")
+
+if 'COHERE_API_KEY' in st.secrets:
+    os.environ["COHERE_API_KEY"] = st.secrets["COHERE_API_KEY"]
+else:
+    # Fallback to local .env for development
+    os.environ["COHERE_API_KEY"] = get_api_key("COHERE_API_KEY")
+
+if 'COHERE_API_KEY' in st.secrets:
+    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+else:
+    # Fallback to local .env for development
+    os.environ["OPENAI_API_KEY"] = get_api_key("OPENAI_API_KEY")
 
 # Check if required API keys are available
 if not os.environ.get("GROQ_API_KEY") or not os.environ.get("COHERE_API_KEY"):
