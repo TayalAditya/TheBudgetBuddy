@@ -943,10 +943,15 @@ if user_query:
         except Exception as e:
             st.error(f"Error analyzing your finances: {str(e)}")
 
-# The rest of your interface (sidebar date selection, main columns, etc.)
-# remains largely unchanged...
-
-# Replace the date selection code in the sidebar with this safer version:
+if 'balance_left' not in df.columns:
+    st.warning("'balance_left' column is missing. Calculating it now...")
+    # Example calculation: Start with an initial balance of 5000
+    initial_balance = 5000
+    df = df.sort_values('date')  # Ensure data is sorted by date
+    df['balance_left'] = initial_balance + df.apply(
+        lambda row: row['amount'] if row['transaction_type'] == 'income' else -row['amount'],
+        axis=1
+    ).cumsum()
 
 # Sidebar for date selection
 st.sidebar.markdown('<h2 class="custom-subheader">📅 Date Selection</h2>', unsafe_allow_html=True)
@@ -1008,7 +1013,7 @@ if df is not None and not df.empty:
         daily_data = df[df['date'].dt.date == selected_date]
         if not daily_data.empty:
             st.markdown('<div class="card">', unsafe_allow_html=True)
-            fig1 = px.pie(daily_data, values='amount', names='category_description',
+            fig1 = px.pie(daily_data, values='amount', names='category',  # Use 'category' instead of 'category_description'
                          title=f'Spending Breakdown for {selected_date}')
             fig1.update_layout(
                 title_font=dict(size=20, color='#ffffff', family='Arial'),
@@ -1042,7 +1047,7 @@ if df is not None and not df.empty:
                 # Aggregate data by date and calculate additional metrics
                 daily_data = period_data.groupby(period_data['date'].dt.date).agg({
                     'amount': ['sum', 'mean', 'count'],
-                    'category_description': lambda x: ', '.join(x.unique())
+                    'category': lambda x: ', '.join(x.unique())
                 }).reset_index()
                 
                 daily_data.columns = ['date', 'total_amount', 'avg_amount', 'transaction_count', 'categories']
@@ -1105,20 +1110,3 @@ if df is not None and not df.empty:
                 )
                 
                 st.plotly_chart(fig2, use_container_width=True)
-    
-    # Transaction list
-    st.markdown('<h2 class="custom-subheader">📝 Transaction Details</h2>', unsafe_allow_html=True)
-    daily_transactions = df[df['date'].dt.date == selected_date]
-    if not daily_transactions.empty:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.dataframe(
-            daily_transactions[['transaction_id', 'amount', 'type', 'category_description', 'balance_left']],
-            hide_index=True
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.info("No transactions for selected date.")
-else:
-    # If no data is available, display a message
-    st.sidebar.warning("No transaction data available.")
-    st.info("No data available to display. Please add a transaction first or log in.")
