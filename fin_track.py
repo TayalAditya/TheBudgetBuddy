@@ -320,12 +320,19 @@ class FinanceTools:
     def analyze_spending(self, date: str) -> str:
         """Analyze spending for a specific date"""
         daily_data = self.df[self.df['date'].dt.date == pd.to_datetime(date).date()]
+        
         if daily_data.empty:
             return f"No transactions found for {date}"
         
+        if 'balance_left' not in daily_data.columns:
+            return f"Error: 'balance_left' column is missing in the data for {date}."
+            
         total_spent = daily_data['amount'].sum()
         transaction_count = len(daily_data)
-        balance = daily_data['balance_left'].iloc[-1]
+        try:
+            balance = daily_data['balance_left'].iloc[-1]
+        except IndexError:
+            balance = "N/A"  # Fallback if no balance is available
         
         return f"On {date}, you had {transaction_count} transactions totaling ${total_spent:.2f}. Your balance at the end of the day was ${balance:.2f}"
 
