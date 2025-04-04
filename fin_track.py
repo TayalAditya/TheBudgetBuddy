@@ -111,6 +111,28 @@ def get_embeddings():
 
 embeddings = get_embeddings()
 
+
+# Ensure all data is properly processed before use
+if df is not None and 'date' in df.columns:
+    # Try to convert 'date' column to datetime format
+    try:
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        # Check for NaT values after conversion
+        if df['date'].isna().any():
+            st.warning("Some date values couldn't be parsed. Please check your data.")
+            # Drop rows with invalid dates
+            df = df.dropna(subset=['date'])
+    except Exception as e:
+        st.error(f"Error converting dates: {str(e)}")
+        
+    # Debug information
+    st.sidebar.markdown("### Debug Info")
+    with st.sidebar.expander("DataFrame Info"):
+        st.write("Date column type:", df['date'].dtype)
+        st.write("Available columns:", df.columns.tolist())
+        st.write("Number of rows:", len(df))
+
+
 # Load and prepare data - now supports user-specific data
 @st.cache_data
 def load_data(user_id=None, demo_mode=False):
@@ -316,46 +338,126 @@ def add_transaction_form():
 class FinanceTools:
     def __init__(self, df: pd.DataFrame):
         self.df = df
+        if 'date' in self.df.columns:
+            try:
+                self.df['date'] = pd.to_datetime(self.df['date'])
+            except Exception as e:
+                st.error(f"Error converting dates: {str(e)}")
 
     def analyze_spending(self, date: str) -> str:
         """Analyze spending for a specific date"""
-        daily_data = self.df[self.df['date'].dt.date == pd.to_datetime(date).date()]
-        
-        if daily_data.empty:
-            return f"No transactions found for {date}"
-        
-        if 'balance_left' not in daily_data.columns:
-            return f"Error: 'balance_left' column is missing in the data for {date}."
+        # Ensure date column is datetime
+        if 'date' not in self.df.columns:
+            return "No date column found in the data."
             
-        total_spent = daily_data['amount'].sum()
-        transaction_count = len(daily_data)
+        # Check if date is already datetime
+        if not pd.api.types.is_datetime64_dtype(self.df['date']):
+            try:
+                self.df['date'] = pd.to_datetime(self.df['date'])
+            except Exception:
+                return "Could not parse date column to datetime format."
+                
         try:
-            balance = daily_data['balance_left'].iloc[-1]
-        except IndexError:
-            balance = "N/A"  # Fallback if no balance is available
-        
-        return f"On {date}, you had {transaction_count} transactions totaling ${total_spent:.2f}. Your balance at the end of the day was ${balance:.2f}"
+            # Filter for transactions on the specified date
+            target_date = pd.to_datetime(date).date()
+            daily_data = self.df[self.df['date'].dt.date == target_date]
+            
+            if daily_data.empty:
+                return f"No transactions found for {date}"
+            
+            # Check for required columns
+            if 'amount' not in daily_data.columns:
+                return f"No amount column found in the data for {date}."
+                
+            # Check for balance_left column
+            if 'balance_left' not in daily_data.columns:
+                # Try to calculate balance if missing
+                st.warning("Balance information is missing. Using estimated values.")
+                balance = "Unknown"
+            else:
+                balance = daily_data['balance_left'].iloc[-1]
+            
+            total_spent = daily_data['amount'].sum()
+            transaction_count = len(daily_data)
+            
+            # Format the return string appropriately
+            if isinstance(balance, (int, float)):
+                return f"On {date}, you had {transaction_count} transactions totaling ${total_spent:.2f}. Your balance at the end of the day was ${balance:.2f}"
+            else:
+                return f"On {date}, you had {transaction_count} transactions totaling ${total_spent:.2f}. Balance information is unavailable."
+                
+        except Exception as e:
+            return f"Error analyzing spending: {str(e)}"
 
+    
     def analyze_trends(self, start_date: str, end_date: str) -> str:
         """Analyze spending trends between two dates"""
-        mask = (self.df['date'].dt.date >= pd.to_datetime(start_date).date()) & \
-               (self.df['date'].dt.date <= pd.to_datetime(end_date).date())
-        period_data = self.df[mask]
-        
-        total_spent = period_data['amount'].sum()
-        avg_transaction = period_data['amount'].mean()
-        category_trends = period_data.groupby('category_description')['amount'].sum()
-        
-        return f"Between {start_date} and {end_date}, you spent ${total_spent:.2f} across {len(period_data)} transactions. Average transaction: ${avg_transaction:.2f}"
+        # Ensure date column is datetime
+        if 'date' not in self.df.columns:
+            return "No date column found in the data."
+            
+        if not pd.api.types.is_datetime64_dtype(self.df['date']):
+            try:
+                self.df['date'] = pd.to_datetime(self.df['date'])
+            except Exception:
+                return "Could not parse date column to datetime format."
+                
+        try:
+            # Convert input dates to datetime
+            start = pd.to_datetime(start_date).date()
+            end = pd.to_datetime(end_date).date()
+            
+            # Filter data
+            mask = (self.df['date'].dt.date >= start) & (self.df['date'].dt.date <= end)
+            period_data = self.df[mask]
+            
+            if period_data.empty:
+                return f"No transactions found between {start_date} and {end_date}"
+            
+            # Calculate metrics
+            if 'amount' not in period_data.columns:
+                return "No amount column found in the data."
+                
+            total_spent = period_data['amount'].sum()
+            avg_transaction = period_data['amount'].mean()
+            
+            return f"Between {start_date} and {end_date}, you spent ${total_spent:.2f} across {len(period_data)} transactions. Average transaction: ${avg_transaction:.2f}"
+            
+        except Exception as e:
+            return f"Error analyzing trends: {str(e)}"
 
+    
     def get_balance_info(self) -> str:
         """Get current balance and recent changes"""
-        current_balance = self.df['balance_left'].iloc[-1]
-        last_week_balance = self.df[self.df['date'] >= pd.Timestamp.now() - pd.Timedelta(days=7)]['balance_left'].iloc[0]
-        balance_change = current_balance - last_week_balance
-        
-        return f"Current balance: ${current_balance:.2f}. Balance change in the last week: ${balance_change:.2f}"
+        try:
+            # Check if required columns exist
+            if 'date' not in self.df.columns or 'balance_left' not in self.df.columns:
+                return "Balance information is unavailable. Required columns missing."
+                
+            # Ensure date is in datetime format
+            if not pd.api.types.is_datetime64_dtype(self.df['date']):
+                self.df['date'] = pd.to_datetime(self.df['date'])
+            
+            # Get current balance (from most recent transaction)
+            self.df = self.df.sort_values('date')
+            current_balance = self.df['balance_left'].iloc[-1]
+            
+            # Calculate balance change in last week
+            one_week_ago = pd.Timestamp.now() - pd.Timedelta(days=7)
+            recent_data = self.df[self.df['date'] >= one_week_ago]
+            
+            if recent_data.empty:
+                return f"Current balance: ${current_balance:.2f}. No recent transactions in the last week."
+                
+            first_balance = recent_data['balance_left'].iloc[0]
+            balance_change = current_balance - first_balance
+            
+            return f"Current balance: ${current_balance:.2f}. Balance change in the last week: ${balance_change:.2f}"
+            
+        except Exception as e:
+            return f"Error getting balance information: {str(e)}"
 
+    
     def search_transactions(self, query: str) -> str:
         """Search for specific transactions"""
         if compression_retriever:
