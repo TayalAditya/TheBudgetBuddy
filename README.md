@@ -1,84 +1,96 @@
-# BudgetBuddy - AI-Powered Financial Assistant
+# BudgetBuddy - AI-Powered Financial Assistant 💰🤖
 
-BudgetBuddy is an intelligent financial tracking application that helps you analyze your spending patterns, track expenses, and gain insights into your financial health using natural language processing.
+**BudgetBuddy** is an intelligent, AI-integrated budgeting application that helps you track, manage, and understand your personal finances using natural language queries. With an interactive UI and seamless backend integration, it turns expense tracking into an intuitive and insightful experience.
 
-## Features
+## 🚀 Features
 
-- **Natural Language Queries**: Ask questions about your finances in plain English
-- **Interactive Visualizations**: Dynamic charts and graphs based on your queries
-- **Financial Analysis**: Get insights on spending patterns, balance trends, and category breakdowns
-- **Responsive UI**: Modern, user-friendly interface
+- 🔍 **Natural Language Queries** — Ask questions about your finances in plain English
+- 📊 **Dynamic Visualizations** — Interactive charts for spending trends and breakdowns
+- 📁 **Personalized Budget Tracking** — Categorize transactions, monitor balances
+- 🔐 **Secure Login System** — User-based access with authentication
+- 📈 **Financial Insights** — Understand patterns and manage funds better
 
-## Technology Stack
+## 🛠️ Tech Stack
 
 - **Frontend**: Streamlit
-- **AI/ML**: 
+- **Backend**: Python (Flask-style architecture)
+- **AI Integration**:
   - Groq LLM (Llama3-70b-8192)
-  - Cohere Embeddings and Reranking
+  - Cohere Embeddings + Reranking
   - LangChain for orchestration
-- **Data Processing**: Pandas, FAISS vector store
+- **Data Handling**: Pandas, FAISS for vector search
 - **Visualization**: Plotly
+- **Auth**: JWT-style login system (via `auth.py`)
 
-## Setup Instructions
+## ⚙️ Setup Instructions
 
-### Prerequisites
+### 📋 Prerequisites
 
 - Python 3.8+
 - API Keys:
-  - Groq API Key
-  - Cohere API Key
-  - OpenAI API Key (optional)
+  - `GROQ_API_KEY`
+  - `COHERE_API_KEY`
+  - `OPENAI_API_KEY`
 
-### Installation
+### 🧪 Installation
 
-1. Clone the repository
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/TayalAditya/TheBudgetBuddy.git
+   cd TheBudgetBuddy
    ```
-   git clone https://github.com/yourusername/BudgetBuddy.git
-   cd BudgetBuddy
-   ```
-
-2. Install dependencies
-   ```
+2. Install dependencies:
+   ```bash
    pip install -r requirements.txt
    ```
-
-3. Create a `.env` file with your API keys
-   ```
+3. Create a `.env` file and add your API keys:
+   ```makefile
    GROQ_API_KEY=your_groq_api_key
    COHERE_API_KEY=your_cohere_api_key
    OPENAI_API_KEY=your_openai_api_key
    ```
-
-4. Generate sample transaction data (optional)
-   ```
-   python temp.py
-   ```
-
-5. Run the application
-   ```
+   Replace `your_groq_api_key`, `your_cohere_api_key`, and `your_openai_api_key` with your actual API keys.
+4. Run the Streamlit application:
+   ```bash
    streamlit run fin_track.py
    ```
 
-## Deployment to Streamlit Cloud
+## ☁️ Deploy on Streamlit Cloud
 
-1. Push your code to GitHub
-2. Log in to [Streamlit Cloud](https://streamlit.io/cloud)
-3. Create a new app and connect it to your GitHub repository
-4. Set environment variables in the Streamlit Cloud dashboard:
-   - GROQ_API_KEY
-   - COHERE_API_KEY
-   - OPENAI_API_KEY
-5. Deploy!
+To deploy your application on Streamlit Cloud, follow these steps:
 
-## File Structure
+1. Push your code to GitHub.
+2. Log in to Streamlit Cloud.
+3. Create a new app, linking this repository.
+4. In the app’s Advanced settings, add the following environment variables:
+	* `GROQ_API_KEY`
+	* `COHERE_API_KEY`
+	* `OPENAI_API_KEY`
+5. Click Deploy to go live!
 
-- `fin_track.py`: Main Streamlit application
-- `fin_agent.py`: Agent logic for financial analysis
-- `temp.py`: Script to generate synthetic transaction data
-- `transactions_with_types.csv`: Sample transaction data
-- `requirements.txt`: Project dependencies
-- `.env`: Environment variables (not included in repo)
+## 📂 File Structure
 
-## License
+The project has the following file structure:
+```plaintext
+.
+├── .devcontainer/               # Dev container configuration
+├── README.md                    # This file
+├── auth.py                      # Authentication logic
+├── fin_track.py                 # Main Streamlit application
+├── sheets_db.py                 # Sheets / DB interactions
+├── transactions_with_types.csv  # Sample transaction data
+├── requirements.txt             # Project dependencies
+├── setup.py                     # Package setup script
+```
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+## 🎯 Contributions & Feedback
+
+Contributions, feedback, and suggestions are always welcome! If you find this project helpful, consider giving it a ⭐ on GitHub.
+
+## 📜 License
+
+This project is licensed under the MIT License.
+
+## Made with ❤️ by
+
+Made with ❤️ by @TayalAditya
