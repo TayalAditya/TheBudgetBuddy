@@ -124,25 +124,62 @@ def load_data(user_id=None, demo_mode=False):
         # If there's already an in-memory dataframe with changes, use that
         global df
         if 'df' in globals() and df is not None and len(df) > len(base_df):
-            return df
-        return base_df
+            return calculate_balance_left(df)  # Ensure balance_left is calculated
+        return calculate_balance_left(base_df)  # Ensure balance_left is calculated
         
     elif st.session_state.get('logged_in', False) and user_id:
         # If logged in, get user transactions from Google Sheets
         try:
-            return db.get_user_transactions(user_id)
+            df = db.get_user_transactions(user_id)
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+            return calculate_balance_left(df)  # Ensure balance_left is calculated
         except Exception as e:
             st.warning(f"Error loading transactions. Using sample data instead.")
             # Fall back to sample data if there's an error
             base_df = pd.read_csv('transactions_with_types.csv')
             base_df['date'] = pd.to_datetime(base_df['date'])
-            return base_df
+            return calculate_balance_left(base_df)  # Ensure balance_left is calculated
     else:
         # Fall back to the sample data for non-logged-in users
         base_df = pd.read_csv('transactions_with_types.csv')
         base_df['date'] = pd.to_datetime(base_df['date'])
-        return base_df
+        return calculate_balance_left(base_df)  # Ensure balance_left is calculated
 
+# Function to calculate balance_left
+def calculate_balance_left(dataframe):
+    """Calculate running balance for transactions"""
+    if dataframe is None or dataframe.empty:
+        return dataframe
+    
+    # Create a copy to avoid modifying the original
+    df_copy = dataframe.copy()
+    
+    # Ensure transaction_type exists
+    if 'transaction_type' not in df_copy.columns and 'type' in df_copy.columns:
+        df_copy['transaction_type'] = df_copy['type']
+    
+    # Sort by date
+    if 'date' in df_copy.columns:
+        df_copy['date'] = pd.to_datetime(df_copy['date'], errors='coerce')
+        df_copy = df_copy.sort_values('date')
+    
+    # Calculate running balance
+    initial_balance = 5000  # Starting balance
+    balance = initial_balance
+    
+    # Create balance_left column
+    balances = []
+    
+    for _, row in df_copy.iterrows():
+        if row.get('transaction_type') == 'income' or row.get('type') == 'income':
+            balance += row['amount']
+        else:  # Expense
+            balance -= row['amount']
+        balances.append(balance)
+    
+    df_copy['balance_left'] = balances
+    return df_copy
+    
 # Only load data if user is logged in
 if st.session_state.get('logged_in', False):
     df = load_data(st.session_state.user_id, st.session_state.get('demo_mode', False))
@@ -228,6 +265,56 @@ if vectorstore is not None:
     compression_retriever = get_retriever(vectorstore)
 
 # Add a function to add a new transaction for a user
+
+
+def display_transaction_data():
+    """Display all transaction data in a table"""
+    st.header("📊 Transaction Data")
+    
+    if df is None or df.empty:
+        st.info("No transaction data available. Add some transactions first!")
+        return
+        
+    # Add filters
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # Date range filter
+        min_date = df['date'].min().date()
+        max_date = df['date'].max().date()
+        start_date = st.date_input("From", min_date, min_value=min_date, max_value=max_date)
+        
+    with col2:
+        end_date = st.date_input("To", max_date, min_value=min_date, max_value=max_date)
+        
+    with col3:
+        if 'category' in df.columns:
+            categories = ['All'] + sorted(df['category'].unique().tolist())
+            selected_category = st.selectbox("Category", categories)
+    
+    # Apply filters
+    filtered_df = df.copy()
+    filtered_df = filtered_df[(filtered_df['date'].dt.date >= start_date) & (filtered_df['date'].dt.date <= end_date)]
+    
+    if 'category' in df.columns and selected_category != 'All':
+        filtered_df = filtered_df[filtered_df['category'] == selected_category]
+    
+    # Display data
+    st.dataframe(
+        filtered_df.style.format({'amount': '${:.2f}', 'balance_left': '${:.2f}'}),
+        use_container_width=True
+    )
+    
+    # Add download button
+    csv = filtered_df.to_csv(index=False)
+    st.download_button(
+        "Download Data",
+        csv,
+        "transaction_data.csv",
+        "text/csv",
+        key='download-csv'
+    )
+
 def add_transaction_form():
     st.header("Add New Transaction")
     
@@ -371,20 +458,17 @@ class FinanceTools:
                 
             # Check for balance_left column
             if 'balance_left' not in daily_data.columns:
-                # Try to calculate balance if missing
-                st.warning("Balance information is missing. Using estimated values.")
-                balance = "Unknown"
-            else:
-                balance = daily_data['balance_left'].iloc[-1]
+                daily_data = calculate_balance_left(daily_data)
             
             total_spent = daily_data['amount'].sum()
             transaction_count = len(daily_data)
             
             # Format the return string appropriately
-            if isinstance(balance, (int, float)):
+            try:
+                balance = daily_data['balance_left'].iloc[-1]
                 return f"On {date}, you had {transaction_count} transactions totaling ${total_spent:.2f}. Your balance at the end of the day was ${balance:.2f}"
-            else:
-                return f"On {date}, you had {transaction_count} transactions totaling ${total_spent:.2f}. Balance information is unavailable."
+            except:
+                return f"On {date}, you had {transaction_count} transactions totaling ${total_spent:.2f}. Balance information could not be calculated."
                 
         except Exception as e:
             return f"Error analyzing spending: {str(e)}"
@@ -767,48 +851,29 @@ def process_query(query: str, context: str):
 
 def process_query_with_rag(query: str, current_date) -> str:
     """Process the query using RAG to provide relevant context"""
-    # Check if the user is logged in and data is available
-    if not st.session_state.get('logged_in', False) or df is None or df.empty:
-        return "No transaction data is available for analysis. Please log in and ensure transaction data is available."
+    if not st.session_state.logged_in or df is None:
+        return "Please log in to use this feature."
 
-    # Check if the retriever is available
     if compression_retriever is None:
-        # Provide basic insights even without the retriever
-        try:
-            total_transactions = len(df)
-            total_spent = df[df['transaction_type'] == 'expense']['amount'].sum() if 'transaction_type' in df.columns else df['amount'].sum()
-            avg_transaction = df['amount'].mean()
-            categories = df['category'].unique().tolist() if 'category' in df.columns else []
-
-            return (
-                f"RAG retriever is unavailable, but here are some insights:\n"
-                f"- Total Transactions: {total_transactions}\n"
-                f"- Total Spent: ${total_spent:.2f}\n"
-                f"- Average Transaction: ${avg_transaction:.2f}\n"
-                f"- Categories: {', '.join(categories) if categories else 'No categories available'}"
-            )
-        except Exception as e:
-            return f"Error generating basic insights: {str(e)}"
-
+        return "No transaction data available for analysis."
+        
     try:
-        # Retrieve relevant documents from the vector store
+        # Get relevant documents from the vector store
         relevant_docs = compression_retriever.get_relevant_documents(query)
-
+        
         # Build context from relevant documents
         context = []
-
+        
         # Add current financial status
         context.append(f"Current Date: {current_date}")
         context.append(finance_tools.get_balance_info())
-
+        
         # Add relevant transaction information
         if relevant_docs:
             context.append("\nRelevant Transactions:")
             for doc in relevant_docs[:3]:  # Limit to top 3 most relevant transactions
                 context.append(doc.page_content)
-        else:
-            context.append("\nNo relevant transactions found for your query.")
-
+        
         # Add recent activity summary
         recent_transactions = df[df['date'].dt.date >= (pd.Timestamp(current_date) - pd.Timedelta(days=7)).date()]
         if not recent_transactions.empty:
@@ -817,18 +882,10 @@ def process_query_with_rag(query: str, current_date) -> str:
             context.append(f"\nRecent Activity (Last 7 Days):")
             context.append(f"- Total Transactions: {count_recent}")
             context.append(f"- Total Amount: ${total_recent:.2f}")
-        else:
-            context.append("\nNo recent activity in the last 7 days.")
-
-        # Combine context into a single string
-        context_str = "\n".join(context)
-
-        # Use the context to generate a response
-        response = prompt_llm_for_financial_insights(query, context_str)
-        return response
+        
+        return "\n".join(context)
     except Exception as e:
         return f"Error building context: {str(e)}"
-
 
 # Function to generate dynamic charts based on query - same as original
 def generate_dynamic_charts():
@@ -1237,5 +1294,28 @@ if df is not None and not df.empty:
                     paper_bgcolor='#2d3748',
                     hovermode='x unified'
                 )
-                
+          
                 st.plotly_chart(fig2, use_container_width=True)
+# Add to your main app interface - place this in the sidebar
+st.sidebar.markdown("### 📊 Navigation")
+app_mode = st.sidebar.radio(
+    "Choose View",
+    ["Dashboard", "Transaction Data", "Financial Assistant"]
+)
+
+# Main app flow based on selection
+if app_mode == "Dashboard":
+    # Your existing dashboard code here
+    st.header("📊 Dashboard")
+    # Add your dashboard components here (e.g., charts, summaries)
+    pass
+elif app_mode == "Transaction Data":
+    # Show transaction data table
+    display_transaction_data()
+elif app_mode == "Financial Assistant":
+    # Your existing chatbot interface
+    st.header("💬 Financial Assistant")
+    query = st.text_input("Ask me anything about your finances:")
+    if query:
+        response = process_query_with_rag(query, datetime.now().date())
+        st.write(response)
