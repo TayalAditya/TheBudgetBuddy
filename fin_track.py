@@ -1,4 +1,4 @@
-import traceback
+1import traceback
 import os
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
@@ -113,19 +113,37 @@ embeddings = get_embeddings()
 
 # Load and prepare data - now supports user-specific data
 @st.cache_data
-def load_data(user_id=None):
-    if st.session_state.logged_in and user_id:
+def load_data(user_id=None, demo_mode=False):
+    if demo_mode:
+        # For consistency, always read from original file first, then apply cached changes
+        base_df = pd.read_csv('transactions_with_types.csv')
+        base_df['date'] = pd.to_datetime(base_df['date'])
+        
+        # If there's already an in-memory dataframe with changes, use that
+        global df
+        if 'df' in globals() and df is not None and len(df) > len(base_df):
+            return df
+        return base_df
+        
+    elif st.session_state.get('logged_in', False) and user_id:
         # If logged in, get user transactions from Google Sheets
-        return db.get_user_transactions(user_id)
+        try:
+            return db.get_user_transactions(user_id)
+        except Exception as e:
+            st.warning(f"Error loading transactions. Using sample data instead.")
+            # Fall back to sample data if there's an error
+            base_df = pd.read_csv('transactions_with_types.csv')
+            base_df['date'] = pd.to_datetime(base_df['date'])
+            return base_df
     else:
         # Fall back to the sample data for non-logged-in users
-        df = pd.read_csv('transactions_with_types.csv')
-        df['date'] = pd.to_datetime(df['date'])
-        return df
+        base_df = pd.read_csv('transactions_with_types.csv')
+        base_df['date'] = pd.to_datetime(base_df['date'])
+        return base_df
 
 # Only load data if user is logged in
-if st.session_state.logged_in:
-    df = load_data(st.session_state.user_id)
+if st.session_state.get('logged_in', False):
+    df = load_data(st.session_state.user_id, st.session_state.get('demo_mode', False))
 else:
     # Placeholder until login
     df = None
@@ -204,24 +222,95 @@ def add_transaction_form():
     
     if st.button("Add Transaction"):
         if description and amount > 0:
-            try:
-                # Add transaction to Google Sheets
-                db.add_transaction(
-                    st.session_state.user_id,
-                    date.strftime("%Y-%m-%d"),
-                    description,
-                    amount,
-                    category,
-                    transaction_type
-                )
-                st.success("Transaction added successfully!")
-                # Update the dataframe
-                st.session_state.update_data = True
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error adding transaction: {str(e)}")
+            with st.spinner("Adding transaction..."):
+                try:
+                    if st.session_state.get('demo_mode', False):
+                        # For demo mode, add to the in-memory dataframe
+                        global df
+                        
+                        # Create a new row
+                        new_id = len(df) + 1
+                        transaction_id = f"DBT-{new_id}" if transaction_type == "expense" else f"CRD-{new_id}"
+                        
+                        # Calculate new balance
+                        if df is not None and not df.empty:
+                            last_balance = df['balance_left'].iloc[-1]
+                            if transaction_type == "expense":
+                                new_balance = last_balance - amount
+                            else:
+                                new_balance = last_balance + amount
+                        else:
+                            # Start with 5000 if no data
+                            new_balance = 5000 + (amount if transaction_type == "income" else -amount)
+                        
+                        # Create new transaction row
+                        new_row = pd.DataFrame([{
+                            'transaction_id': transaction_id,
+                            'date': pd.to_datetime(date),
+                            'amount': amount,
+                            'type': transaction_type,
+                            'category_description': category,
+                            'balance_left': new_balance,
+                            'description': description
+                        }])
+                        
+                        # Append to dataframe and sort by date
+                        if df is None:
+                            df = new_row
+                        else:
+                            df = pd.concat([df, new_row], ignore_index=True)
+                            df = df.sort_values('date')
+                        
+                        # Clear cached data to force reload
+                        st.cache_data.clear()
+                        
+                        st.success("Transaction added successfully! (Demo Mode)")
+                        
+                    else:
+                        # Real mode: Add to Google Sheets
+                        db.add_transaction(
+                            st.session_state.user_id,
+                            date.strftime("%Y-%m-%d"),
+                            description,
+                            amount,
+                            category,
+                            transaction_type
+                        )
+                        
+                        # Clear cached data and force refresh
+                        st.cache_data.clear()
+                        
+                        st.success("Transaction added successfully!")
+                    
+                    # Add a small delay to allow the success message to be seen
+                    import time
+                    time.sleep(1)
+                    
+                    # Force refresh by rerunning the app
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Error adding transaction: {str(e)}")
+                    st.error("Details: Please check console logs for more information.")
         else:
             st.warning("Please fill in all fields")
+        #         # Add transaction to Google Sheets
+        #         db.add_transaction(
+        #             st.session_state.user_id,
+        #             date.strftime("%Y-%m-%d"),
+        #             description,
+        #             amount,
+        #             category,
+        #             transaction_type
+        #         )
+        #         st.success("Transaction added successfully!")
+        #         # Update the dataframe
+        #         st.session_state.update_data = True
+        #         st.rerun()
+        #     except Exception as e:
+        #         st.error(f"Error adding transaction: {str(e)}")
+        # else:
+        #     st.warning("Please fill in all fields")
 
 # Existing FinanceTools class
 class FinanceTools:
