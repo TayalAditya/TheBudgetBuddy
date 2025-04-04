@@ -84,4 +84,4 @@ Got ideas? Bugs? Drop an issue or a pull request!
 If you like the project, leave a ⭐ to show support.
 
 ---
-Made with ❤️ by [@TayalAditya](https://github.com/TayalAditya)
+Made with ❤️ by [Team Code Architects](https://github.com/TayalAditya)
