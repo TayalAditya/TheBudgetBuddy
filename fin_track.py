@@ -946,6 +946,12 @@ st.sidebar.markdown('<h2 class="custom-subheader">📅 Date Selection</h2>', uns
 
 # Check if df exists and has data
 if df is not None and not df.empty:
+    # Ensure the 'date' column is in datetime format
+    if 'date' in df.columns:
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')  # Convert to datetime, handle errors
+        if df['date'].isnull().any():
+            st.error("Some dates could not be parsed. Please check your data.")
+    
     min_date = df['date'].min().date()  # Convert to Python date
     max_date = df['date'].max().date()  # Convert to Python date
     
