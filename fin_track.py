@@ -241,7 +241,7 @@ def add_transaction_form():
                                 new_balance = last_balance + amount
                         else:
                             # Start with 5000 if no data
-                            new_balance = 5000 + (amount if transaction_type == "income" else -amount)
+                            new_balance = 0 + (amount if transaction_type == "income" else -amount)
                         
                         # Create new transaction row
                         new_row = pd.DataFrame([{
