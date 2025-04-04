@@ -93,30 +93,30 @@ class SheetsDB:
     
     def add_transaction(self, user_id, date, description, amount, category, transaction_type):
         """Add a new transaction"""
-     try:
-        txn_sheet = self.client.open(self.transactions_sheet_name)
-        txn_ws = txn_sheet.worksheet("transactions")
-        
-        # Get next transaction ID
-        transaction_ids = txn_ws.col_values(1)[1:]  # Skip header
-        next_id = 1 if not transaction_ids else int(max(transaction_ids)) + 1
-        
-        # Add transaction
-        txn_ws.append_row([
-            next_id,
-            user_id,
-            date,
-            description,
-            amount,
-            category,
-            transaction_type
-        ])
-        
-        return next_id
-     except Exception as e:
-        st.error(f"Error in add_transaction: {str(e)}")
-        # Re-raise the exception to be caught by the caller
-        raise
+        try:
+            txn_sheet = self.client.open(self.transactions_sheet_name)
+            txn_ws = txn_sheet.worksheet("transactions")
+            
+            # Get next transaction ID
+            transaction_ids = txn_ws.col_values(1)[1:]  # Skip header
+            next_id = 1 if not transaction_ids else int(max(transaction_ids)) + 1
+            
+            # Add transaction
+            txn_ws.append_row([
+                next_id,
+                user_id,
+                date,
+                description,
+                amount,
+                category,
+                transaction_type
+            ])
+            
+            return next_id
+        except Exception as e:
+            st.error(f"Error in add_transaction: {str(e)}")
+            # Re-raise the exception to be caught by the caller
+            raise
     
     def get_user_transactions(self, user_id):
         """Get all transactions for a user"""
