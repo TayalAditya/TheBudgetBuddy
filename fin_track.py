@@ -45,9 +45,6 @@ def get_api_key(key_name):
     # Fall back to environment variables
     return os.getenv(key_name)
 
-# Set API keys
-os.environ["GROQ_API_KEY"] = get_api_key("GROQ_API_KEY")
-
 if 'GROQ_API_KEY' in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 else:
