@@ -11,9 +11,9 @@ faiss-cpu
 nltk
 cohere
 tiktoken
-python-dotenv
 tqdm
 requests
 sentence_transformers
 numpy
-
+gspread
+oauth2client
