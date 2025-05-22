@@ -213,29 +213,50 @@ def create_vector_store(_df):
     if _df is None or _df.empty:
         return None
         
-    # Create a combined text field for embedding with more context
     texts = []
     metadatas = []
     
+    # Define default values for potentially missing columns
+    default_transaction_id = "Unknown ID"
+    default_amount = 0.0
+    default_type = "unknown"
+    default_category_description = "Uncategorized"
+    # Ensure date is in a consistent format, string is used later for metadata
+    default_date_str = "Unknown Date" 
+    default_balance_left = 0.0
+
     for _, row in _df.iterrows():
+        # Safely get values using .get() with defaults
+        transaction_id = row.get('transaction_id', default_transaction_id)
+        amount = row.get('amount', default_amount)
+        # 'type' is used for transaction type in the original f-string and metadata
+        transaction_type_val = row.get('type', default_type) 
+        # 'category_description' is used for category in f-string and metadata (key 'category')
+        category_desc_val = row.get('category_description', default_category_description)
+        date_val = row.get('date', default_date_str)
+        balance_left_val = row.get('balance_left', default_balance_left)
+
         text = f"""Transaction Details:
-        - ID: {row['transaction_id']}
-        - Amount: ${row['amount']:.2f}
-        - Type: {row['type']}
-        - Category: {row['category_description']}
-        - Date: {row['date']}
-        - Balance After: ${row['balance_left']:.2f}"""
+        - ID: {transaction_id}
+        - Amount: ${amount:.2f}
+        - Type: {transaction_type_val}
+        - Category: {category_desc_val}
+        - Date: {date_val}
+        - Balance After: ${balance_left_val:.2f}"""
         texts.append(text)
+        
         metadatas.append({
-            "transaction_id": row['transaction_id'],
-            "amount": row['amount'],
-            "type": row['type'],
-            "category": row['category_description'],
-            "date": str(row['date']),
-            "balance": row['balance_left']
+            "transaction_id": transaction_id,
+            "amount": amount,
+            "type": transaction_type_val, # Corresponds to row.get('type', ...)
+            "category": category_desc_val, # Corresponds to row.get('category_description', ...)
+            "date": str(date_val), # Ensure date is string for metadata
+            "balance": balance_left_val
         })
     
-    # Create vector store with metadata
+    if not texts: # If DataFrame was empty or all rows somehow resulted in no text
+        return None
+
     return FAISS.from_texts(
         texts,
         embeddings,
