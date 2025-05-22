@@ -276,7 +276,7 @@ def get_retriever(_vs):
     if _vs is None:
         return None
     return ContextualCompressionRetriever(
-        base_compressor=CohereRerank(),
+        base_compressor=CohereRerank(model="rerank-english-v3.0", cohere_api_key=get_api_key("COHERE_API_KEY")),
         base_retriever=_vs.as_retriever(search_kwargs={"k": 5})
     )
 
