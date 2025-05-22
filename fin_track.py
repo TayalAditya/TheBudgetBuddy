@@ -272,12 +272,12 @@ if df is not None and not df.empty:
     
     # Create compression retriever with caching
 @st.cache_resource
-def get_retriever(vs):
-    if vs is None:
+def get_retriever(_vs):
+    if _vs is None:
         return None
     return ContextualCompressionRetriever(
         base_compressor=CohereRerank(),
-        base_retriever=vectorstore.as_retriever(search_kwargs={"k": 5})
+        base_retriever=_vs.as_retriever(search_kwargs={"k": 5})
     )
 
 # Only create retriever if vectorstore exists
